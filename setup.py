@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'gym'
+package_name = 'jetrover_gym'
 
 setup(
     name=package_name,
