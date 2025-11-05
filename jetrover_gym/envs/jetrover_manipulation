@@ -1,0 +1,76 @@
+import gymnasium as gym
+from gymnasium import spaces
+
+class JetRoverManipulation():
+    def __init__(self, max_episode_steps=20):
+        # state: pos (xyz), vel_pos (xyz), rot (rpy), gripper
+        # rgb: gripper_state
+        self.observation_space = spaces.Dict()
+        self.observation_space['state'] = spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=(10,),
+            dtype=float
+        )
+        if self._rgb:
+            num_cam = len(self._camera_ids)
+            ob_space['rgb'] = spaces.Box(
+                low=0,
+                high=255,
+                shape=(num_cam, self._img_obs_width, self._img_obs_height, 3),
+                dtype=np.uint8
+            )
+
+        # vel_pos (xyz), vel_rot (rpy), gripper
+        self.action_space = spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=(7,),
+            dtype=float
+        ) 
+
+    def _get_observation():
+        obs = dict()
+        # obs['state'] = EE coordinate (xyz), rotation (rpy), gripper (open/close)
+        # obs['rgb'] = image
+
+        # in ROS: get image, get state
+        # Get directly info from ROS 2
+
+        return obs
+    
+    def reset(self):
+        # Define initial position of arm (reset to neutral position)
+
+        obs = self._get_observation()
+        pass
+
+    def step(self, action):
+        self._control(action)
+
+        obs = self._get_observation()
+        reward = 0.0
+        terminated = False
+        truncated = False
+        info = {}
+
+        return obs, reward, terminated, truncated, info
+
+    def control(self, action):
+        
+
+if __name__ == "__main__":
+    env = JetRoverManipulation()
+
+    obs, info = env.reset()
+
+    for _ in range(100):
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, info = env.step(action)
+        print(f"action: {action}, obs: {obs}, reward: {reward}")
+
+    # Flow:
+    # 1. Implement Gym interface
+    # 2. Implement Teleoperation using keyboard and store dataset
+    # 3. Replay buffer to load dataset and pre-process state/action/reward
+    # 4. Modify IQL 
