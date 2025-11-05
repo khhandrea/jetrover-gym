@@ -1,27 +1,38 @@
 import gymnasium as gym
 from gymnasium import spaces
+import numpy as np
 
 class JetRoverManipulation():
-    def __init__(self, max_episode_steps=20):
-        # state: pos (xyz), vel_pos (xyz), rot (rpy), gripper
-        # rgb: gripper_state
+    """Hiwonder JetRover manipulation environment backed by ROS 2 and IK."""
+
+    def __init__(self, max_episode_steps=100, rgb=False):
+        """Initialize the environment.
+
+        Args:
+            max_episode_steps: max step after which the environment will be terminated.
+        """
+        self._max_episode_steps = max_episode_steps
+        self.rgb = rgb
+        self._img_rgb_height = 640
+        self._img_rgb_width = 480
+
         self.observation_space = spaces.Dict()
+        # EE pos (xyz), rot (rpy), and gripper_state (open/close)
         self.observation_space['state'] = spaces.Box(
             low=-1.0,
             high=1.0,
-            shape=(10,),
+            shape=(7,),
             dtype=float
         )
         if self._rgb:
-            num_cam = len(self._camera_ids)
-            ob_space['rgb'] = spaces.Box(
+            self.observation_space['rgb'] = spaces.Box(
                 low=0,
                 high=255,
-                shape=(num_cam, self._img_obs_width, self._img_obs_height, 3),
+                shape=(self._img_rgb_width, self._img_rgb_height, 3),
                 dtype=np.uint8
             )
 
-        # vel_pos (xyz), vel_rot (rpy), gripper
+        # EE delta_pos (xyz), delta_rot (rpy), and gripper_state (open/close)
         self.action_space = spaces.Box(
             low=-1.0,
             high=1.0,
@@ -29,41 +40,62 @@ class JetRoverManipulation():
             dtype=float
         ) 
 
-    def _get_observation():
-        obs = dict()
-        # obs['state'] = EE coordinate (xyz), rotation (rpy), gripper (open/close)
-        # obs['rgb'] = image
+    def _get_observation(self):
+        """Get observation of the state
 
-        # in ROS: get image, get state
-        # Get directly info from ROS 2
-
+        Returns:
+            obs: EE position (xyz), rotation (rpy), and gripper_state (open/close)
+        """
+        obs = spaces.Dict()
+        obs['state'] = ...
+        if self._rgb:
+            obs['rgb'] = ...
         return obs
+
+    def _control(self, action: np.ndarray) -> bool:
+        """Apply a delta action by solving IK and sending commands.
+
+        Args:
+            action: EE delta_position (xyz), delta_rotation (rpy), and gripper_state (open/close)
+
+        Returns:
+            result: True if success to apply the action
+        """
+        # 1. Get xyz and rpy using Forward kinematics 
+        # 2. Calculate target xyz and rpy
+        # 3. Get values using inverse kinematics
+        # 4. Change the servos using ik and gripper_state 
+        result = False
+        return result
     
     def reset(self):
-        # Define initial position of arm (reset to neutral position)
-
+        """Reset the robot to initial position."""
         obs = self._get_observation()
-        pass
+        info = dict()
+        return obs, info
 
-    def step(self, action):
-        self._control(action)
+    def step(self, action: np.ndarray):
+        """Advance the environment by one step.
+
+        Args:
+            action: EE delta_position (xyz), delta_rotation (rpy), and gripper_state (open/close)
+        """
+        result = self._control(action)
 
         obs = self._get_observation()
         reward = 0.0
         terminated = False
         truncated = False
-        info = {}
-
+        info = {
+            'action_result': result
+        }
         return obs, reward, terminated, truncated, info
 
-    def control(self, action):
-        
 
 if __name__ == "__main__":
-    env = JetRoverManipulation()
+    env = JetRoverManipulation(rgb=False)
 
     obs, info = env.reset()
-
     for _ in range(100):
         action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
