@@ -9,39 +9,47 @@ from manipulation.kinematics import forward_kinematics, inverse_kinematics
 from jetrover_gym.src.utils import T_to_xyz_rpy, xyz_rpy_to_T
 
 ACTION_GROUPSAVE_DIR = '/home/ubuntu/software/arm_pc/ActionGroups'
-GRIPPER_PULSE_RANGE = (100, 550)
 INITIAL_GRIPPER_PULSE = 500
+GRIPPER_PULSE_RANGE = (120, 550)
+EE_POS_LOWER = np.array([0.15, -0.001, 0.02], dtype=np.float32)
+EE_POS_UPPER = np.array([0.24, 0.001, 0.29], dtype=np.float32)
 CONTROL_DURATION = 2.0 
 SLEEP_DURATION = 1.0
-EE_POS_LOWER = np.array([0.15, -0.001, 0.02], dtype=np.float32)
-EE_POS_UPPER = np.array([0.23, 0.001, 0.27], dtype=np.float32)
 
-pos_scale = 0.02
-rpy_scale = 0.05
-
-class JetRoverManipulation(Env):
+class JetRoverManipulationEnv(Env):
     """Hiwonder JetRover manipulation environment backed by ROS 2 and IK."""
 
     def __init__(self,
                  name='jetrover_manipulation',
                  max_episode_steps=100,
-                 rgb=True,
+                 use_rgb=False,
                  debug=False,
-                 ik_error_threshold=0.01):
+                 ik_error_threshold=0.01,
+                 delta_pulse_max=50,
+                 pos_scale=0.04,
+                 rpy_scale=0.1
+                 ):
         """Initialize the environment.
 
         Args:
             name: name of the node to be used.
             max_episode_steps: max step after which the environment will be terminated.
-            rgb: whether to include RGB image in observation.
+            use_rgb: whether to include RGB image in observation.
             debug: if true, verbose output will be printed.
+            ik_error_threshold: threshold to determine if IK solver succeeded.
+            delta_pulse_max: max delta pulse to be applied in each step.
+            pos_scale: scaling factor for delta position.
+            rpy_scale: scaling factor for delta rotation.
         """
         self._max_episode_steps = max_episode_steps
-        self._rgb = rgb
+        self._use_rgb = use_rgb
         self._img_rgb_height = 640
         self._img_rgb_width = 480
-        self._ik_error_threshold = ik_error_threshold
         self._debug = debug
+        self._ik_error_threshold = ik_error_threshold
+        self._delta_pulse_max = delta_pulse_max
+        self._pos_scale = pos_scale
+        self._rpy_scale = rpy_scale
 
         self._node = ManipulationNode(name)
         self._gripper_pulse = INITIAL_GRIPPER_PULSE
@@ -49,7 +57,7 @@ class JetRoverManipulation(Env):
         self.observation_space = spaces.Dict()
         # EE pos (xyz), rot (rpy), and gripper_state (open/close)
         self.observation_space['state'] = spaces.Box(low=-1.0, high=1.0, shape=(7,), dtype=float)
-        if self._rgb:
+        if self._use_rgb:
             self.observation_space['rgb'] = spaces.Box(
                 low=0,
                 high=255,
@@ -87,7 +95,7 @@ class JetRoverManipulation(Env):
         obs_state.append(gripper_state)
 
         obs = {'state': np.asarray(obs_state)}
-        if self._rgb:
+        if self._use_rgb:
             obs['rgb'] = ...
         return obs
 
@@ -119,8 +127,8 @@ class JetRoverManipulation(Env):
         pos, rpy = T_to_xyz_rpy(transform_matrix)
 
         # Calculate target xyz and rpy
-        delta_pos = action[:3] * pos_scale
-        delta_rpy = action[3:6] * rpy_scale
+        delta_pos = action[:3] * self._pos_scale
+        delta_rpy = action[3:6] * self._rpy_scale
         gripper_action = action[6]
 
         # Get values using inverse kinematics
@@ -140,9 +148,14 @@ class JetRoverManipulation(Env):
         target_joint_pulses = angle2pulse(sol)
         target_joint_pulses = target_joint_pulses.astype(np.int64)
 
+        if np.any(target_joint_pulses < 0):
+            print("Negative pulses!")
+            print(f"target pulses: {target_joint_pulses}")
+            return False
+
         delta_joint_pulses = np.abs(target_joint_pulses - joint_pulses)
-        if np.any(delta_joint_pulses >= 10):
-            print("Too difference pulses!")
+        if np.any(delta_joint_pulses >= self._delta_pulse_max):
+            print("Too different pulses!")
             print(f"current pulses: {joint_pulses}")
             print(f"target pulses: {target_joint_pulses}")
             return False
@@ -154,6 +167,7 @@ class JetRoverManipulation(Env):
 
         # Gripper
         target_gripper_pulse = int(gmin + (1 - gripper_action) * (gmax - gmin))
+        target_gripper_pulse = gmax if target_gripper_pulse > (gmax + gmin) / 2 else gmin
         self._node._set_position_pulse([(10, target_gripper_pulse)], CONTROL_DURATION)
 
         sleep(CONTROL_DURATION + SLEEP_DURATION)
@@ -174,11 +188,7 @@ class JetRoverManipulation(Env):
             print(f"[Debug] action: {action}")
             print(f"[Debug] target xyz, rpy: {target_pos}, {target_rpy}")
             print(f"[Debug] ik_error = {ik_error}")
-            print(f"[Debug] target joint pulses: {target_joint_pulses}")
-
-            print(f"[Debug] pulse2angle - angle2pulse: {p2a2p}")
-            print(f"[Debug] ik - fk: {ik2fk}")
-            print(f"[Debug] T_to_xyz_rpy - xyz_rpy_to_T: {T2xyzrpy2T}")
+            print(f"[Debug] target pulses: {target_joint_pulses}")
 
         return True
     
@@ -210,13 +220,13 @@ class JetRoverManipulation(Env):
 
 
 if __name__ == "__main__":
-    env = JetRoverManipulation(rgb=False, debug=True)
+    env = JetRoverManipulationEnv(debug=True)
 
     obs, info = env.reset()
     print(f"obs: {obs}")
     for _ in range(5):
         # action = env.action_space.sample()
-        action = np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        action = np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2])
         obs, reward, terminated, truncated, info = env.step(action)
 
     # v Implement Gym interface (get_observation, reset, control)
