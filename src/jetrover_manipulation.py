@@ -140,6 +140,13 @@ class JetRoverManipulation(Env):
         target_joint_pulses = angle2pulse(sol)
         target_joint_pulses = target_joint_pulses.astype(np.int64)
 
+        delta_joint_pulses = np.abs(target_joint_pulses - joint_pulses)
+        if np.any(delta_joint_pulses >= 10):
+            print("Too difference pulses!")
+            print(f"current pulses: {joint_pulses}")
+            print(f"target pulses: {target_joint_pulses}")
+            return False
+
         # Change servos
         # Joints
         self._node.set_joint_positions_pulse(target_joint_pulses, CONTROL_DURATION)
@@ -153,7 +160,7 @@ class JetRoverManipulation(Env):
 
         if self._debug:
             pulses_debug = angle2pulse(joint_angles)
-            p2a2p = (pulses_debug - joint_pulses).sum()
+            p2a2p = (pulses_debug - joint_pulses)
 
             res_debug = inverse_kinematics(joint_angles, transform_matrix)
             ik2fk = (res_debug["sol"].astype(np.float32) - joint_angles).sum()
