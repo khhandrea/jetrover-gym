@@ -57,6 +57,8 @@ class JetRoverManipulationEnv(Env):
         self.observation_space = spaces.Dict()
         # EE pos (xyz), rot (rpy), and gripper_state (open/close)
         self.observation_space['state'] = spaces.Box(low=-1.0, high=1.0, shape=(7,), dtype=float)
+        self.global_step = 0
+
         if self._use_rgb:
             self.observation_space['rgb'] = spaces.Box(
                 low=0,
@@ -195,8 +197,8 @@ class JetRoverManipulationEnv(Env):
     def reset(self):
         """Reset the robot to initial position."""
         self._node.execute_action_group('init')
-        print("RESET")
         sleep(CONTROL_DURATION)
+        self.global_step = 0
         obs = self._get_observation()
         info = dict()
         return obs, info
@@ -208,6 +210,7 @@ class JetRoverManipulationEnv(Env):
             action: EE delta_position (xyz), delta_rotation (rpy), and gripper_state (open/close)
         """
         result = self._control(action)
+        self.global_step += 1
 
         obs = self._get_observation()
         reward = 0.0
@@ -230,6 +233,6 @@ if __name__ == "__main__":
         obs, reward, terminated, truncated, info = env.step(action)
 
     # v Implement Gym interface (get_observation, reset, control)
-    # 2. Implement Teleoperation using keyboard and store dataset
+    # v Implement Teleoperation using keyboard and store dataset
     # 3. Replay buffer to load dataset and pre-process state/action/reward
     # 4. Modify IQL 
