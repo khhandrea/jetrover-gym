@@ -13,6 +13,9 @@ __pycache__/
 .idea/
 .DS_Store
 
+# jetrover-gym
+teleoperation_dataset
+
 # iql-pytorch
 runs
 models

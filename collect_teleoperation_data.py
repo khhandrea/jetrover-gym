@@ -46,17 +46,15 @@ def print_yellow(x):
 
 def print_help():
     print_yellow("  Teleop Controls:")
-
-    print_yellow("    w, s : move upward/downward")
-    print_yellow("    a, d : move forward/backward (based on the robot's torso)")
-    print_yellow("    o, l:  rotate pitch (lift/lower the gripper)")
-
     print_yellow("    space: toggle gripper")
     print_yellow("    r: reset robot")
     print_yellow("    m: to save demonstration")
-    # print_yellow("    g: to save gif")
     print_yellow("    h: help")
     print_yellow("    q: quit")
+    print_yellow("    [Belows can be typed at once e.g. 'as'")
+    print_yellow("    w, s : move upward/downward")
+    print_yellow("    a, d : move forward/backward based on the robot's torso")
+    print_yellow("    o, l:  rotate pitch lift/lower the gripper")
 
 def get_new_episode_idx(task_demo_path):
     def extract_episode_idx(filename):
@@ -82,7 +80,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     """ Definition for user's hyperparameters and constants """
-    _dt = 0.5       # max = 1
+    _dt = 0.4       # max = 1
     _dr = 0.5       # max = 1
     KEYBOARD_ACTION_MAP = {
         "d": np.array([-_dt, 0, 0, 0, 0, 0, -1], dtype=np.float32),
@@ -105,9 +103,10 @@ def main():
         print(f"Global step: {env.global_step}")
 
     def _execute_reset(env):
-        null_action = np.array([0, 0, 0, 0, 1.0])
         obs = env.reset()
-        logger(obs, null_action, 0.0, 0, None)
+        action = np.array([0., 0., 0., 0., 0., 0., 1.0])
+        obs, reward, terminated, truncated, info = env.step(action)
+        logger(obs, action, 0.0, 0, None)
         print(f"Global step: {env.global_step}")
 
     def _get_gripper_state(env):
@@ -140,17 +139,13 @@ def main():
         # Check for key press
         key = input("Next action (h to help): ")
 
-        # escape key to quit
-        if key == "q":
+        if key == "h":
+            print_help()
+
+        elif key == "q":
             print("Quitting teleoperation.")
             running = False
             continue
-
-        # space bar to change gripper state
-        elif key == " ":
-            is_open = 1 - is_open
-            _execute_action(env, np.array([0., 0., 0., 0., 0., 0., is_open], dtype=np.float32))
-            print(f"Gripper is now: {GRIPPER_STATE[is_open]}")
 
         elif key == "r":
             print("Resetting robot...")
@@ -163,9 +158,6 @@ def main():
             print_help()
             print(f"Current log's file: {logger.filename}")
 
-        elif key == "h":
-            print_help()
-
         elif key == "m":
             logger.save()
             new_ep_idx = get_new_episode_idx(task_demo_path)
@@ -173,8 +165,18 @@ def main():
             logger.make_new_rollout(filename=new_filename)
             print(f"New log's file: {logger.filename}")
 
-        if key in KEYBOARD_ACTION_MAP:
-            action = KEYBOARD_ACTION_MAP[key]
+        elif key == " ":
+            is_open = 1 - is_open
+            _execute_action(env, np.array([0., 0., 0., 0., 0., 0., is_open], dtype=np.float32))
+            print(f"Gripper is now: {GRIPPER_STATE[is_open]}")
+
+        else:
+            action = np.zeros(7, dtype=np.float32)
+            for char in key:
+                if char not in KEYBOARD_ACTION_MAP:
+                    print("Invalid key. Please try again.")
+                    break
+                action += KEYBOARD_ACTION_MAP[char]
             action[-1] = is_open
             _execute_action(env, action)
 

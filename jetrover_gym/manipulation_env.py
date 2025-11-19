@@ -28,8 +28,8 @@ class JetRoverManipulationEnv(Env):
                  delta_pulse_max=50,
                  pos_scale=0.04,
                  rpy_scale=0.1,
-                 control_duration=2.0,
-                 sleep_duration=1.0
+                 control_duration=1.0,
+                 sleep_duration=0.5
                  ):
         """Initialize the environment.
 
