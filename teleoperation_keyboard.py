@@ -6,7 +6,8 @@ import pickle
 import signal
 import time
 import numpy as np
-from jetrover_gym.src.jetrover_manipulation import JetRoverManipulationEnv
+
+from jetrover_gym.manipulation_env import JetRoverManipulationEnv
 
 class PickleLogger:
     def __init__(self, filename):
